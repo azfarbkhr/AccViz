@@ -26,8 +26,11 @@ To set up AccViz, clone the repository and install the dependencies:
 
 // bash code 
  ```
-git clone [repository-url]
+git clone https://github.com/azfarbkhr/AccViz.git
 cd AccViz
+py -m venv .rbEnv
+source .rbEnv/Scripts/Activate
+py -m pip install --upgrade pip
 pip install -r requirements.txt
  ```
  
