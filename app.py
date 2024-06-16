@@ -94,7 +94,7 @@ with balance_sheet_tab:
     BS_GL_Group3 = pd.pivot_table(Filtered_Balance_Summary, index=level_of_detail_sorted, values='CumulativeSum', columns=comparison_by, aggfunc='sum')
 
     print_df_to_dashboard(BS_GL_Group3, st)
-
+    # a
 with cash_flow_tab:
     cf_structure = pd.read_excel('data/Data.xlsx', sheet_name='CF Structure')
     CF_GL_Master = pd.merge(GL_Master, cf_structure, left_on='Account_key', right_on='Account_key', how='inner', suffixes=('', '')) 
