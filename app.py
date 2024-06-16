@@ -1,11 +1,35 @@
 import pandas as pd
 import streamlit as st
 import numpy as np
-from utils import load_gl_transactions_data_from_excel, print_df_to_dashboard, generated_sorted_column, apply_global_filters
+from streamlit_extras.metric_cards import style_metric_cards
+from streamlit_extras.bottom_container import bottom
+from streamlit_extras.dataframe_explorer import dataframe_explorer
+from streamlit_image_coordinates import streamlit_image_coordinates
+
+from utils import load_gl_transactions_data_from_excel 
+from utils import print_df_to_dashboard
+from utils import generated_sorted_column 
+from utils import apply_global_filters, filter_values, sum_filtered_values, slice_df_by_name 
+from utils import stylize
+from utils import plot_st_chart, plot_comparison_chart_with_traces
 
 # Set Streamlit page configuration
 st.set_page_config(page_title='Financial Dashboard', page_icon=':bar_chart:', layout='wide', initial_sidebar_state='auto')
+st.markdown(
+    """
+        <style>
+            .appview-container .main .block-container {{
+                padding-top: {padding_top}rem;
+                padding-bottom: {padding_bottom}rem;
+                }}
 
+        </style>""".format(
+        padding_top=1, padding_bottom=1
+    ),
+    unsafe_allow_html=True,
+)
+with bottom():
+    st.write("----\n`Prepared by S. Azfar, ACCA` 🎈🎈🎈")    
 
 # Main dashboard title
 st.title('Financial Dashboard')
@@ -35,15 +59,13 @@ country = st.sidebar.multiselect('Country', GL_Master['Country'].unique())
 
 filtered_values = (year, region, country)
 
-# Sidebar footer
-st.sidebar.write("----\n`Prepared by S. Azfar, ACCA` 🎈🎈🎈")
-
-profit_and_loss_tab, balance_sheet_tab, cash_flow_tab, transaction_details_tab = st.tabs(["P&L Report", "Balance Sheet", "Cash Flow Statement", "Transaction Details"])
+profit_and_loss_tab, balance_sheet_tab, cash_flow_tab, transaction_details_tab, soce_tab = st.tabs(["P&L Report", "Balance Sheet", "Cash Flow Statement", "Transaction Details", "Changes in Equity Statement"])
 
 with transaction_details_tab:
     # Filter data based on sidebar selections
     Filtered_GL_Master = apply_global_filters(GL_Master, *filtered_values)    
-    st.dataframe(Filtered_GL_Master)
+    st.dataframe(dataframe_explorer(Filtered_GL_Master, case=False))
+
 
 with profit_and_loss_tab:
     # Filter data based on sidebar selections
@@ -62,8 +84,45 @@ with profit_and_loss_tab:
     
     # removing the grand total row at the bottom
     income_statement_df = income_statement_df.iloc[:-1, :]
+    sales_ttd = apply_global_filters(GL_Master, region=region, country=country, year=[])
+    sales_ttd = sum_filtered_values(sales_ttd, filter_maps={"SubClass": ['Sales']})
 
-    print_df_to_dashboard(income_statement_df, st)
+    current_year = max(year or ["2020"])
+    prv_year = str(int(current_year) - 1)  
+
+    sales_ftp = apply_global_filters(GL_Master, region=region, country=country, year=[current_year])
+    sales_ftp = sum_filtered_values(sales_ftp, filter_maps={"SubClass": ['Sales']})
+    
+    prv_sales_ftp = apply_global_filters(GL_Master, region=region, country=country, year=[prv_year])
+    prv_sales_ftp = sum_filtered_values(prv_sales_ftp, filter_maps={"SubClass": ['Sales']})
+    diff_sales_ftp = sales_ftp - prv_sales_ftp
+
+    col1, col2, col3, col4, col5, col6  = profit_and_loss_tab.columns(6)
+    col1.metric("Total Sales TTD", stylize(sales_ttd))
+    col2.metric("Total Sales FTP", stylize(sales_ftp), delta=stylize(diff_sales_ftp))
+    
+    style_metric_cards(background_color = "#fff", border_left_color="#f75")
+    print_df_to_dashboard(income_statement_df)
+
+    
+    income_statement_df = income_statement_df.iloc[:, :-1]
+
+    
+    st.write("### Ratio Analysis")
+    # gp margin
+    gross_profit_df = slice_df_by_name(income_statement_df, 'Class', 'Gross Profit')
+    sales_df = slice_df_by_name(income_statement_df, 'SubClass', 'Sales')    
+    gp_margin = gross_profit_df / sales_df * 100 
+    gp_margin.index = ['Gross Profit %']
+    plot_st_chart(comparison_by, gp_margin, 'bar', 'Gross Profit %')
+
+    # np margin
+    net_profit_df = slice_df_by_name(income_statement_df, 'Class', 'Net Profit')
+    np_margin = net_profit_df / sales_df * 100 
+    gp_margin.index = ['Net Profit %']    
+    plot_comparison_chart_with_traces(comparison_by, gp_margin, 'Net Profit %')
+
+
 
 with balance_sheet_tab:
     # Load balance sheet structure from an Excel file
@@ -94,7 +153,7 @@ with balance_sheet_tab:
     BS_GL_Group3 = pd.pivot_table(Filtered_Balance_Summary, index=level_of_detail_sorted, values='CumulativeSum', columns=comparison_by, aggfunc='sum')
 
     print_df_to_dashboard(BS_GL_Group3, st)
-    # a
+
 with cash_flow_tab:
     cf_structure = pd.read_excel('data/Data.xlsx', sheet_name='CF Structure')
     CF_GL_Master = pd.merge(GL_Master, cf_structure, left_on='Account_key', right_on='Account_key', how='inner', suffixes=('', '')) 
@@ -145,3 +204,5 @@ with cash_flow_tab:
                                  ).sort_values(by=['SubTypeSorted'], ascending=True)
 
     print_df_to_dashboard(Filtered_CF, st)
+
+
