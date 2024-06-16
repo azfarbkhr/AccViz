@@ -9,6 +9,8 @@ import plotly.graph_objects as go
 
 amount_formatter = lambda num:'{0:,.2f}'.format(num) if num>=0 else '({0:,.2f})'.format(abs(num))
 percent_formatter = lambda num: '{0:,.2f}%'.format(num * 100) if num >= 0 else '({0:,.2f}%)'.format(abs(num) * 100)
+percent_formatter_v2 = lambda num: '{0:,.2f}%'.format(num ) if num >= 0 else '({0:,.2f}%)'.format(abs(num))
+
 
 @st.cache_data
 def load_gl_transactions_data_from_excel():
@@ -37,7 +39,7 @@ def print_df_to_dashboard(df, st=st, formatter=amount_formatter):
                                 formatter= formatter,
                             ).set_properties(**{'text-align': 'right'})
 
-    st.write(df_styled.to_html(), unsafe_allow_html=True)
+    st.write(df_styled.to_html(index=False), unsafe_allow_html=True)
     return df_styled
 
 
@@ -65,26 +67,19 @@ def apply_global_filters(df, year, region, country):
     return df[(df['Year'].isin(year) | (len(year) == 0)) & (df['Country'].isin(country) | (len(country) == 0))& (df['Region'].isin(region) | (len(region) == 0))]
 
 
-def slice_df_by_name(df, index_level, slice_value):
+def filter_df_by_index_values(df, index_level, slice_value=[]):
     """
     Filters a DataFrame by cleaning a specified level of its multi-index and then slicing by a given value.
-    
-    Parameters:
-    - df: The pandas DataFrame with a multi-index.
-    - index_level: The name (or integer position) of the index level to clean.
-    - slice_value: The value to slice by after cleaning the index level.
-    
-    Returns:
-    - A DataFrame filtered based on the specified slice_value, after cleaning the specified index level.
     """
     # Extract the specified level of the index and clean it
+
     df_index = df.index.get_level_values(index_level)
     cleaned_index = df_index.str.replace('<span style="display:none;">\d+ - </span>', '', regex=True)
     cleaned_index = cleaned_index.str.replace('<i>', '')
     cleaned_index = cleaned_index.str.replace('</i>', '')
     
     # Identify keys after cleaning that match the specified slice_value
-    matches = cleaned_index == slice_value
+    matches = cleaned_index.isin(slice_value)
     
     # Convert the boolean array to the original index keys
     keys_to_search = df.index[matches]
@@ -98,14 +93,14 @@ def slice_df_by_name(df, index_level, slice_value):
 
     return result
 
-def filter_values(df, filter_maps={}):
+def filter_df_by_column_values(df, filter_maps={}):
     for column, filter in filter_maps.items():
         df = df[(df[column].isin(filter))]
     
     return df 
 
 def sum_filtered_values(df, filter_maps={}, amount_column_name="Amount"):
-    df = filter_values(df, filter_maps)
+    df = filter_df_by_column_values(df, filter_maps)
     return df['Amount'].sum()
 
 def stylize(value, style='shortened_currency'):

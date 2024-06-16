@@ -4,14 +4,14 @@ import numpy as np
 from streamlit_extras.metric_cards import style_metric_cards
 from streamlit_extras.bottom_container import bottom
 from streamlit_extras.dataframe_explorer import dataframe_explorer
-from streamlit_image_coordinates import streamlit_image_coordinates
 
 from utils import load_gl_transactions_data_from_excel 
 from utils import print_df_to_dashboard
 from utils import generated_sorted_column 
-from utils import apply_global_filters, filter_values, sum_filtered_values, slice_df_by_name 
+from utils import apply_global_filters, sum_filtered_values, filter_df_by_index_values 
 from utils import stylize
 from utils import plot_st_chart, plot_comparison_chart_with_traces
+from utils import percent_formatter_v2
 
 # Set Streamlit page configuration
 st.set_page_config(page_title='Financial Dashboard', page_icon=':bar_chart:', layout='wide', initial_sidebar_state='auto')
@@ -81,9 +81,11 @@ with profit_and_loss_tab:
     income_statement_df = pd.pivot_table(PnL_GL_Master, index= level_of_detail_sorted, values='Amount', columns=comparison_by, 
                                 aggfunc='sum', margins=True, margins_name='Total'
                             ).sort_values(by=level_of_detail_sorted, ascending=True)
-    
+
     # removing the grand total row at the bottom
     income_statement_df = income_statement_df.iloc[:-1, :]
+
+    # calculating the KPIs
     sales_ttd = apply_global_filters(GL_Master, region=region, country=country, year=[])
     sales_ttd = sum_filtered_values(sales_ttd, filter_maps={"SubClass": ['Sales']})
 
@@ -97,30 +99,54 @@ with profit_and_loss_tab:
     prv_sales_ftp = sum_filtered_values(prv_sales_ftp, filter_maps={"SubClass": ['Sales']})
     diff_sales_ftp = sales_ftp - prv_sales_ftp
 
-    col1, col2, col3, col4, col5, col6  = profit_and_loss_tab.columns(6)
-    col1.metric("Total Sales TTD", stylize(sales_ttd))
-    col2.metric("Total Sales FTP", stylize(sales_ftp), delta=stylize(diff_sales_ftp))
     
+    col1, col2 = profit_and_loss_tab.columns([1, 5])
+    col1.write("### Ratio Analysis")
+    with col1.container(height=700):
+        st.metric("Total Sales TTD", stylize(sales_ttd))
+        st.metric("Total Sales FTP", stylize(sales_ftp), delta=stylize(diff_sales_ftp))
+        
     style_metric_cards(background_color = "#fff", border_left_color="#f75")
-    print_df_to_dashboard(income_statement_df)
 
+    col2.write("### Report")
+    with col2.container():
+        print_df_to_dashboard(income_statement_df)
+        income_statement_df = income_statement_df.iloc[:, :-1] # this is done to remove the total at column level as it is not useful in this report. 
     
-    income_statement_df = income_statement_df.iloc[:, :-1]
+    with st.expander("### More Reports",  expanded=True):
+        income_statement_df_for_analysis = pd.pivot_table(PnL_GL_Master, index= ['ClassSorted', 'SubClassSorted', 'SubClass2Sorted'], values='Amount', columns=['Year'], 
+                                aggfunc='sum'
+                            ).sort_values(by=['ClassSorted', 'SubClassSorted', 'SubClass2Sorted'], ascending=True)
 
+        if len(income_statement_df_for_analysis.index.names) > 0:
+            income_statement_df_for_analysis.index.names = [x.replace('Sorted', '') if x else None for x in income_statement_df_for_analysis.index.names]    
     
-    st.write("### Ratio Analysis")
-    # gp margin
-    gross_profit_df = slice_df_by_name(income_statement_df, 'Class', 'Gross Profit')
-    sales_df = slice_df_by_name(income_statement_df, 'SubClass', 'Sales')    
-    gp_margin = gross_profit_df / sales_df * 100 
-    gp_margin.index = ['Gross Profit %']
-    plot_st_chart(comparison_by, gp_margin, 'bar', 'Gross Profit %')
 
-    # np margin
-    net_profit_df = slice_df_by_name(income_statement_df, 'Class', 'Net Profit')
-    np_margin = net_profit_df / sales_df * 100 
-    gp_margin.index = ['Net Profit %']    
-    plot_comparison_chart_with_traces(comparison_by, gp_margin, 'Net Profit %')
+        gross_profit_df = filter_df_by_index_values(income_statement_df_for_analysis, 'Class', ['Gross Profit'])
+        sales_df = filter_df_by_index_values(income_statement_df_for_analysis, 'SubClass', ['Sales'])
+        net_profit_df = filter_df_by_index_values(income_statement_df_for_analysis, 'Class', ['Net Profit'])
+        ebitda_df = filter_df_by_index_values(income_statement_df_for_analysis, 'SubClass', ['Sales', 'Cost of Sales', 'Operating Expenses'])
+
+        st.write("#### Gross Profit Margin Over the Period")
+        gp_margin = gross_profit_df / sales_df * 100 
+        gp_margin.index = ['Gross Profit %']
+        print_df_to_dashboard(gp_margin, formatter=percent_formatter_v2)
+
+        st.write("#### Net Profit Margin Over the Period")
+        np_margin = net_profit_df / sales_df * 100 
+        np_margin.index = ['Net Profit %']
+        print_df_to_dashboard(np_margin, formatter=percent_formatter_v2)
+
+        st.write(("#### EBITDA Over the Period"))
+        ebitda_df.index = ['EBITDA']
+        print_df_to_dashboard(ebitda_df)
+
+        # plot_st_chart(comparison_by, gp_margin, 'bar', 'Gross Profit %')
+
+        # # np margin
+        # np_margin = net_profit_df / sales_df * 100 
+        # gp_margin.index = ['Net Profit %']    
+        # plot_comparison_chart_with_traces(comparison_by, gp_margin, 'Net Profit %')
 
 
 
