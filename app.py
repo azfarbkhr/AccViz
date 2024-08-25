@@ -13,6 +13,7 @@ from utils import apply_global_filters, sum_filtered_values, filter_df_by_index_
 from utils import stylize
 from utils import plot_st_chart, plot_comparison_chart_with_traces
 from utils import percent_formatter_v2
+from utils import ask_from_llm
 
 # Set Streamlit page configuration
 st.set_page_config(page_title='Financial Dashboard', page_icon=':bar_chart:', layout='wide', initial_sidebar_state='auto')
@@ -57,6 +58,22 @@ st.sidebar.subheader('Filter')
 year = st.sidebar.multiselect('Year', GL_Master['Year'].unique())
 region = st.sidebar.multiselect('Region', GL_Master['Region'].unique())
 country = st.sidebar.multiselect('Country', GL_Master['Country'].unique())
+
+# with st.sidebar.expander("Chat with your income statement", expanded=True):
+st.sidebar.subheader('Ask questions about your data')
+# Define form for user input and context selection
+with st.sidebar.form(key='context_form'):
+    # Text area for the user's question
+    question = st.text_area("Question")
+    
+    # Checkboxes for selecting the context
+    st.write("Include in context: ")
+    include_income_statement = st.checkbox("Income Statement")
+    include_balance_sheet = st.checkbox("Balance Sheet")
+    include_cashflow = st.checkbox("Cash Flow")
+    
+    # Submit button for the form
+    q_submit_button = st.form_submit_button(label='Submit')
 
 filtered_values = (year, region, country)
 
@@ -113,6 +130,11 @@ with profit_and_loss_tab:
         print_df_to_dashboard(income_statement_df)
         income_statement_df = income_statement_df.iloc[:, :-1] # this is done to remove the total at column level as it is not useful in this report. 
     
+    context_income_statement = income_statement_df.reset_index().to_markdown(index=False)
+    context_income_statement = context_income_statement.replace("""<span style="display:none;">""", "").replace("""</span>""", "")
+    context_income_statement = context_income_statement.replace("""<i>""", "").replace("""</i>""", "")
+        
+
     with st.expander("### Quick Insights",  expanded=True):
         income_statement_df_for_analysis = pd.pivot_table(PnL_GL_Master, index= ['ClassSorted', 'SubClassSorted', 'SubClass2Sorted'], values='Amount', columns=['Year'], 
                                 aggfunc='sum'
@@ -148,7 +170,7 @@ with profit_and_loss_tab:
             ebitda_df.index = ['EBITDA']
             # print_df_to_dashboard(ebitda_df)
             plot_st_chart(['Year'], ebitda_df, 'EBITDA', 'bar', width=500, height=300)
-
+        
 
     with st.expander("### Breakdown by Region", expanded=True):
         sales_df = apply_global_filters(GL_Master, region=region, country=country, year=[])
@@ -201,6 +223,9 @@ with balance_sheet_tab:
 
     print_df_to_dashboard(BS_GL_Group3, st)
 
+    context_balance_sheet = "balance sheet missing, so do not generate response"
+
+
 with cash_flow_tab:
     cf_structure = pd.read_excel('data/Data.xlsx', sheet_name='CF Structure')
     CF_GL_Master = pd.merge(GL_Master, cf_structure, left_on='Account_key', right_on='Account_key', how='inner', suffixes=('', '')) 
@@ -252,4 +277,24 @@ with cash_flow_tab:
 
     print_df_to_dashboard(Filtered_CF, st)
 
+    context_cash_flow_statement = "cash flow missing, so do not generate response"
 
+if q_submit_button:
+    context = ""
+    if include_income_statement:
+        context += "\n#### Income Statement\n" + context_income_statement + "\n"
+    if include_balance_sheet:
+        context += "\n#### Balance Sheet\n" + context_balance_sheet + "\n"
+    if include_cashflow:
+        context += "\n#### Cashflow Statement\n" +context_cash_flow_statement + "\n"
+
+    # Main content area
+    with st.sidebar.expander("Answer", expanded=True):
+        # Build the query with context
+        query = f""" Try your best to answer the question based on available data, this is for teaching purpose only so assume some data that is not mentioned. \n### context: \n{context}\n\n### question: \n{question} \n ###""" 
+
+        # # Display or use the query for LLM interaction
+        # st.write(query)
+        # Uncomment the following lines to integrate with an LLM
+        response = ask_from_llm(query=query)
+        st.write(response)

@@ -1,3 +1,4 @@
 .rbEnv
 data/~$Data.xlsx
 __pycache__/
+.env

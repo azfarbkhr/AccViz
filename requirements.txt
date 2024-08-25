@@ -3,3 +3,6 @@ streamlit
 plotly
 openpyxl
 streamlit-extras
+google-generativeai
+tabulate
+python-dotenv

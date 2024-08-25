@@ -1,3 +1,4 @@
+import os 
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -5,7 +6,10 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import google.generativeai as genai 
 
+from dotenv import load_dotenv
+load_dotenv()
 
 amount_formatter = lambda num:'{0:,.2f}'.format(num) if num>=0 else '({0:,.2f})'.format(abs(num))
 percent_formatter = lambda num: '{0:,.2f}%'.format(num * 100) if num >= 0 else '({0:,.2f}%)'.format(abs(num) * 100)
@@ -29,6 +33,7 @@ def load_gl_transactions_data_from_excel():
     cleaned_data['Year'] = cleaned_data['Year'].astype('str')
 
     return cleaned_data
+
 
 def print_df_to_dashboard(df, st=st, formatter=amount_formatter):
     if len(df.index.names) > 0:
@@ -93,15 +98,18 @@ def filter_df_by_index_values(df, index_level, slice_value=[]):
 
     return result
 
+
 def filter_df_by_column_values(df, filter_maps={}):
     for column, filter in filter_maps.items():
         df = df[(df[column].isin(filter))]
     
     return df 
 
+
 def sum_filtered_values(df, filter_maps={}, amount_column_name="Amount"):
     df = filter_df_by_column_values(df, filter_maps)
     return df['Amount'].sum()
+
 
 def stylize(value, style='shortened_currency'):
     if style == 'currency':
@@ -120,7 +128,6 @@ def stylize(value, style='shortened_currency'):
             formatted_value = "${:,.2f}B".format(value)
         return formatted_value        
     return formatted_value
-
 
 
 def plot_st_chart(comparison_by, dataframe, y_column_name, chart_type='line', width=700, height=400):
@@ -167,8 +174,6 @@ def plot_st_chart(comparison_by, dataframe, y_column_name, chart_type='line', wi
     st.plotly_chart(fig)
 
 
-
-
 def plot_comparison_chart_with_traces(comparison_by, dataframe, y_column_name):
     """
     Creates a Plotly figure with a new trace for each unique combination of comparison categories,
@@ -212,3 +217,15 @@ def plot_comparison_chart_with_traces(comparison_by, dataframe, y_column_name):
     
     # Display the plot in Streamlit
     st.plotly_chart(fig, use_container_width=True)
+
+@st.cache_data
+def ask_from_llm(query, model="gemini"):
+    if len(query) > 0:
+        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+        # print(query)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(query)
+        # print("received response")
+        return response.text
+    else:
+        return ""
