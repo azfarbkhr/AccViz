@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 import numpy as np
+import plotly.express as px
 from streamlit_extras.metric_cards import style_metric_cards
 from streamlit_extras.bottom_container import bottom
 from streamlit_extras.dataframe_explorer import dataframe_explorer
@@ -99,7 +100,6 @@ with profit_and_loss_tab:
     prv_sales_ftp = sum_filtered_values(prv_sales_ftp, filter_maps={"SubClass": ['Sales']})
     diff_sales_ftp = sales_ftp - prv_sales_ftp
 
-    
     col1, col2 = profit_and_loss_tab.columns([1, 5])
     col1.write("### Ratio Analysis")
     with col1.container(height=700):
@@ -113,7 +113,7 @@ with profit_and_loss_tab:
         print_df_to_dashboard(income_statement_df)
         income_statement_df = income_statement_df.iloc[:, :-1] # this is done to remove the total at column level as it is not useful in this report. 
     
-    with st.expander("### More Reports",  expanded=True):
+    with st.expander("### Quick Insights",  expanded=True):
         income_statement_df_for_analysis = pd.pivot_table(PnL_GL_Master, index= ['ClassSorted', 'SubClassSorted', 'SubClass2Sorted'], values='Amount', columns=['Year'], 
                                 aggfunc='sum'
                             ).sort_values(by=['ClassSorted', 'SubClassSorted', 'SubClass2Sorted'], ascending=True)
@@ -127,28 +127,49 @@ with profit_and_loss_tab:
         net_profit_df = filter_df_by_index_values(income_statement_df_for_analysis, 'Class', ['Net Profit'])
         ebitda_df = filter_df_by_index_values(income_statement_df_for_analysis, 'SubClass', ['Sales', 'Cost of Sales', 'Operating Expenses'])
 
-        st.write("#### Gross Profit Margin Over the Period")
-        gp_margin = gross_profit_df / sales_df * 100 
-        gp_margin.index = ['Gross Profit %']
-        print_df_to_dashboard(gp_margin, formatter=percent_formatter_v2)
+        cht1, cht2, cht3 = st.columns(3)
 
-        st.write("#### Net Profit Margin Over the Period")
-        np_margin = net_profit_df / sales_df * 100 
-        np_margin.index = ['Net Profit %']
-        print_df_to_dashboard(np_margin, formatter=percent_formatter_v2)
+        with cht1: 
+            st.write("#### Gross Profit Margin Over the Period")
+            gp_margin = gross_profit_df / sales_df * 100 
+            gp_margin.index = ['Gross Profit %']
+            # print_df_to_dashboard(gp_margin, formatter=percent_formatter_v2)
+            plot_st_chart(['Year'], gp_margin, 'Gross Profit %', 'line', width=500, height=300 )
+        
+        with cht2:
+            st.write("#### Net Profit Margin Over the Period")
+            np_margin = net_profit_df / sales_df * 100 
+            np_margin.index = ['Net Profit %']
+            # print_df_to_dashboard(np_margin, formatter=percent_formatter_v2)            
+            plot_st_chart(['Year'], np_margin, 'Net Profit %', 'line', width=500, height=300)
+        
+        with cht3:
+            st.write(("#### EBITDA Over the Period"))
+            ebitda_df.index = ['EBITDA']
+            # print_df_to_dashboard(ebitda_df)
+            plot_st_chart(['Year'], ebitda_df, 'EBITDA', 'bar', width=500, height=300)
 
-        st.write(("#### EBITDA Over the Period"))
-        ebitda_df.index = ['EBITDA']
-        print_df_to_dashboard(ebitda_df)
 
-        # plot_st_chart(comparison_by, gp_margin, 'bar', 'Gross Profit %')
+    with st.expander("### Breakdown by Region", expanded=True):
+        sales_df = apply_global_filters(GL_Master, region=region, country=country, year=[])
+        sales_df = sales_df[sales_df['SubClass'] == 'Sales']
+        sales_df = pd.pivot_table(sales_df, index=['Region', 'Year'], values='Amount', aggfunc='sum')
+        sales_df = sales_df.reset_index()
+        # st.write(sales_df)
+        fig = px.bar(sales_df, x='Year', y='Amount', color='Region', barmode='group')
 
-        # # np margin
-        # np_margin = net_profit_df / sales_df * 100 
-        # gp_margin.index = ['Net Profit %']    
-        # plot_comparison_chart_with_traces(comparison_by, gp_margin, 'Net Profit %')
+        # Update layout for better visualization
+        fig.update_layout(
+            title='Sales Breakdown by Year and Region',
+            xaxis_title='Year',
+            yaxis_title='Sales',
+            height=400,
+            bargap=0.4
+        )
 
-
+        # Display the chart in Streamlit
+        st.plotly_chart(fig)        
+        
 
 with balance_sheet_tab:
     # Load balance sheet structure from an Excel file

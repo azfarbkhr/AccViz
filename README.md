@@ -40,5 +40,5 @@ To run the AccViz Streamlit app:
 
 // bash code 
  ```
-streamlit run main.py
+streamlit run app.py
  ```

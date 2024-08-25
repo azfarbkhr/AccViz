@@ -123,8 +123,7 @@ def stylize(value, style='shortened_currency'):
 
 
 
-
-def plot_st_chart(comparison_by, dataframe, chart_type, y_column_name):
+def plot_st_chart(comparison_by, dataframe, y_column_name, chart_type='line', width=700, height=400):
     """
     Plots a comparison chart using Plotly based on the specified parameters.
 
@@ -133,14 +132,16 @@ def plot_st_chart(comparison_by, dataframe, chart_type, y_column_name):
     - dataframe: The pandas DataFrame containing the data to plot.
     - chart_type: Type of chart to plot (e.g., 'bar', 'line').
     - y_column_name: The name of the column to use for the y-axis.
+    - width: Width of the chart. 
+    - height: Height of the chart.
     """
     # Combine the specified columns for the x-axis
-    
     dataframe = dataframe.T.reset_index()
-    
-
     x_axis_label = ' - '.join(comparison_by)
     dataframe[x_axis_label] = dataframe[comparison_by].astype(str).agg(' - '.join, axis=1)
+
+    # Convert x-axis data to string or categorical type to avoid numerical interpolation
+    dataframe[x_axis_label] = dataframe[x_axis_label].astype(str)
     
     # Ensure the y-axis column is in the correct format (e.g., float)
     dataframe[y_column_name] = dataframe[y_column_name].astype(float)
@@ -148,13 +149,24 @@ def plot_st_chart(comparison_by, dataframe, chart_type, y_column_name):
     # Select the plotting function based on the chart_type
     if chart_type == 'bar':
         fig = px.bar(dataframe, x=x_axis_label, y=y_column_name, category_orders={x_axis_label: sorted(dataframe[x_axis_label].unique())})
+        fig.update_layout(bargap=0.4)
     elif chart_type == 'line':
         fig = px.line(dataframe, x=x_axis_label, y=y_column_name, category_orders={x_axis_label: sorted(dataframe[x_axis_label].unique())})
     else:
         raise ValueError("Unsupported chart type provided.")
     
-    # Display the plot in Streamlit
-    st.plotly_chart(fig, use_container_width=True)
+    # Update layout with width, height, and axis settings
+    fig.update_layout(
+        width=width,
+        height=height,
+        xaxis_title='Year',
+        yaxis_title=y_column_name,
+        xaxis_type='category',  # Explicitly set x-axis to categorical
+    )
+    
+    st.plotly_chart(fig)
+
+
 
 
 def plot_comparison_chart_with_traces(comparison_by, dataframe, y_column_name):
